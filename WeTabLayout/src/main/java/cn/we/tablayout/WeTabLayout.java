@@ -136,6 +136,8 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
 
     private float mTabPaddingLeft = 0;
     private float mTabPaddingRight = 0;
+    private float mTabPaddingTop = 0;
+    private float mTabPaddingBottom = 0;
 
     /**
      * Tab设置左右上下的Icon。
@@ -187,10 +189,16 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         this.mTabContainerGravity = mTabContainerGravity;
     }
 
-    public void setCurrentTab(int mCurrentTab) {
-        this.mCurrentTab = mCurrentTab;
+    public void setCurrentTab(int currentTab) {
+        mCurrentTab = currentTab;
         if (haveInit() && mAttachSuccess) {
-            mViewPager.setCurrentItem(mCurrentTab);
+            if(mViewPager != null) {
+                mViewPager.setCurrentItem(mCurrentTab);
+            }else {
+                selectedTab(currentTab);
+                mCurrentScrollTab = currentTab;
+                invalidate();
+            }
         }
     }
 
@@ -250,6 +258,8 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
             mIndicatorCorner = array.getDimension(R.styleable.WeTabLayout_wtl_indicator_corner_radius, 0);
             mTabPaddingLeft = array.getDimension(R.styleable.WeTabLayout_wtl_tab_padding_left, 0);
             mTabPaddingRight = array.getDimension(R.styleable.WeTabLayout_wtl_tab_padding_right, 0);
+            mTabPaddingTop = array.getDimension(R.styleable.WeTabLayout_wtl_tab_padding_top, 0);
+            mTabPaddingBottom = array.getDimension(R.styleable.WeTabLayout_wtl_tab_padding_bottom, 0);
             if (mIndicatorEqualTabText) {
                 mIndicatorWidth = 0;
             }
@@ -314,10 +324,12 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         }
         mTitles.clear();
         mTitles.addAll(titles);
-        this.mViewPager = viewPager;
-        mViewPager.setCurrentItem(mCurrentTab);
-        viewPager.removeOnPageChangeListener(this);
-        viewPager.addOnPageChangeListener(this);
+        if(viewPager != null) {
+            mViewPager = viewPager;
+            viewPager.setCurrentItem(mCurrentTab);
+            viewPager.removeOnPageChangeListener(this);
+            viewPager.addOnPageChangeListener(this);
+        }
         mTabContainer.removeAllViews();
         mTabCount = mTitles.size();
         createTab();
@@ -328,9 +340,9 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         if (!haveInit()) {
             return false;
         }
-        if (null == viewPager) {
-            return false;
-        }
+//        if (null == viewPager) {
+//            return false;
+//        }
         if (mTitles == null) {
             mTitles = new ArrayList<>();
         }
@@ -351,7 +363,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
             if (null == childView) {
                 continue;
             }
-            childView.setPadding((int) mTabPaddingLeft, 0, (int) mTabPaddingRight, 0);
+            childView.setPadding((int) mTabPaddingLeft, (int) mTabPaddingTop, (int) mTabPaddingRight, (int) mTabPaddingBottom);
             if (childView instanceof TextView) {
                 setStyle((TextView) childView, childView, i);
             } else {
@@ -366,8 +378,15 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
                 public void onClick(View v) {
                     int position = mTabContainer.indexOfChild(v);
                     if (position >= 0) {
-                        if (mViewPager.getCurrentItem() != position) {
-                            mViewPager.setCurrentItem(position);
+                        if(mViewPager != null) {
+                            if (mViewPager.getCurrentItem() != position) {
+                                mViewPager.setCurrentItem(position);
+                            }
+                        }else {
+                            mCurrentTab = position;
+                            selectedTab(position);
+                            mCurrentScrollTab = position;
+                            invalidate();
                         }
                     }
                 }
@@ -501,7 +520,9 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         }
         mAttachSuccess = false;
         mTabContainer.removeAllViews();
-        mViewPager.setAdapter(null);
+        if(mViewPager != null) {
+            mViewPager.setAdapter(null);
+        }
     }
 
     /**

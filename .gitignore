@@ -1,11 +1,11 @@
 *.iml
-.gradle
+/.gradle
 /local.properties
 .DS_Store
 /build
 /captures
 
-.idea/
+/.idea
 
 # .gitignore template from https://github.com/github/gitignore/blob/master/Android.gitignore
 # Built application files

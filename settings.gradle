@@ -1,2 +1,2 @@
-include ':app', ':Tab'
+include ':app', ':WeTabLayout'
 rootProject.name='WeTabLayout'

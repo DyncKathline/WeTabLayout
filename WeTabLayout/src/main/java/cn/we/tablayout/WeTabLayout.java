@@ -12,9 +12,11 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
@@ -23,6 +25,7 @@ import android.widget.TextView;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.IdRes;
+import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
 
@@ -53,15 +56,12 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         initView(context, attrs);
     }
 
-    public static final String TAB_TAG = "tab_text";
-
-
     private Context mContext;
 
     /**
      * Tab内容的集合。
      */
-    private List<String> mTitles;
+    private List<Tab> mTabs = new ArrayList<>();
 
     /**
      * 控件是否已经初始化，true的话表示{@link #initView(Context, AttributeSet)}已经走过了。
@@ -84,8 +84,6 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     /**
      * TabView相关的配置。
      */
-    private int mTabCount;
-    private int mTabLayout = -1;
     private int mSelectedTabTextColor;
     private int mDefaultTabTextColor;
     private float mSelectedTabTextSize;
@@ -132,7 +130,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
 
     private boolean mAttachSuccess = false;
 
-    private WeTabSelectedListener mTabSelectedListener;
+    private OnTabSelectedListener mTabSelectedListener;
 
     private float mTabPaddingLeft = 0;
     private float mTabPaddingRight = 0;
@@ -173,15 +171,11 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         }
     }
 
-    public void setTabLayoutIds(int mTabLayout) {
-        this.mTabLayout = mTabLayout;
-    }
-
     public void addHandleTabCallBack(@NonNull IHandleTab mHandleTab) {
         this.mHandleTab = mHandleTab;
     }
 
-    public void setTabSelectedListener(WeTabSelectedListener mTabSelectedListener) {
+    public void addOnTabSelectedListener(OnTabSelectedListener mTabSelectedListener) {
         this.mTabSelectedListener = mTabSelectedListener;
     }
 
@@ -190,12 +184,12 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     }
 
     public void setCurrentTab(int currentTab) {
-        mCurrentTab = currentTab;
         if (haveInit() && mAttachSuccess) {
             if(mViewPager != null) {
-                mViewPager.setCurrentItem(mCurrentTab);
+                mViewPager.setCurrentItem(currentTab);
             }else {
                 selectedTab(currentTab);
+                mCurrentTab = currentTab;
                 mCurrentScrollTab = currentTab;
                 invalidate();
             }
@@ -301,29 +295,8 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         setClipToPadding(false);
     }
 
-    /**
-     * 结合ViewPager，ViewPager必须设置好Adapter。
-     *
-     * @param viewPager
-     * @param titles
-     */
-    public void attachToViewPager(ViewPager viewPager, String[] titles) {
-        if (null == titles || titles.length <= 0) {
-            return;
-        }
-        List<String> list = Arrays.asList(titles);
-        attachToViewPager(viewPager, list);
-    }
-
-    public void attachToViewPager(ViewPager viewPager, List<String> titles) {
-        if (!checkInitState(viewPager)) {
-            return;
-        }
-        if (null == titles || titles.size() <= 0) {
-            return;
-        }
-        mTitles.clear();
-        mTitles.addAll(titles);
+    public void setupWithViewPager(ViewPager viewPager) {
+        mTabs.clear();
         if(viewPager != null) {
             mViewPager = viewPager;
             viewPager.setCurrentItem(mCurrentTab);
@@ -331,8 +304,46 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
             viewPager.addOnPageChangeListener(this);
         }
         mTabContainer.removeAllViews();
-        mTabCount = mTitles.size();
-        createTab();
+//        createTabs();
+        mAttachSuccess = true;
+    }
+
+    /**
+     * 结合ViewPager，ViewPager必须设置好Adapter。
+     *
+     * @param viewPager
+     * @param titles
+     */
+    public void setupWithViewPager(ViewPager viewPager, String[] titles) {
+        if (null == titles || titles.length <= 0) {
+            return;
+        }
+        List<String> list = Arrays.asList(titles);
+        setupWithViewPager(viewPager, list);
+    }
+
+    public void setupWithViewPager(ViewPager viewPager, List<String> titles) {
+        if (!checkInitState(viewPager)) {
+            return;
+        }
+        if (null == titles || titles.size() <= 0) {
+            return;
+        }
+        mTabs.clear();
+        for (String title : titles) {
+            Tab tab = new Tab();
+            tab.parent = this;
+            tab.setText(title);
+            mTabs.add(tab);
+        }
+        if(viewPager != null) {
+            mViewPager = viewPager;
+            viewPager.setCurrentItem(mCurrentTab);
+            viewPager.removeOnPageChangeListener(this);
+            viewPager.addOnPageChangeListener(this);
+        }
+        mTabContainer.removeAllViews();
+        createTabs();
         mAttachSuccess = true;
     }
 
@@ -343,8 +354,8 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
 //        if (null == viewPager) {
 //            return false;
 //        }
-        if (mTitles == null) {
-            mTitles = new ArrayList<>();
+        if (mTabs == null) {
+            mTabs = new ArrayList<>();
         }
         return true;
     }
@@ -352,45 +363,100 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     /**
      * 创建TabView。如果有设置Tab的布局文件，就使用布局文件，没有的话就自己创建TextView。
      */
-    private void createTab() {
-        View childView;
-        for (int i = 0; i < mTabCount; i++) {
-            if (mTabLayout <= 0) {
-                childView = new TextView(mContext);
-            } else {
-                childView = View.inflate(mContext, mTabLayout, null);
-            }
-            if (null == childView) {
-                continue;
-            }
-            childView.setPadding((int) mTabPaddingLeft, (int) mTabPaddingTop, (int) mTabPaddingRight, (int) mTabPaddingBottom);
-            if (childView instanceof TextView) {
-                setStyle((TextView) childView, childView, i);
-            } else {
-                TextView tabView = childView.findViewWithTag(TAB_TAG);
-                setStyle(tabView, childView, i);
-            }
-            if (null != mHandleTab) {
-                mHandleTab.addTab(childView, i);
-            }
-            childView.setOnClickListener(new OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    int position = mTabContainer.indexOfChild(v);
-                    if (position >= 0) {
-                        if(mViewPager != null) {
-                            if (mViewPager.getCurrentItem() != position) {
-                                mViewPager.setCurrentItem(position);
-                            }
-                        }else {
-                            mCurrentTab = position;
-                            selectedTab(position);
-                            mCurrentScrollTab = position;
-                            invalidate();
+    private void createTabs() {
+        for (int i = 0; i < mTabs.size(); i++) {
+            Tab tab = mTabs.get(i);
+            createTab(i, tab);
+        }
+    }
+
+    private void createTab(int i, Tab tab) {
+        LinearLayout tabView = new LinearLayout(getContext());
+        tabView.setGravity(mTabContainerGravity);
+        if (!TextUtils.isEmpty(tab.getText())) {
+            View childView = new TextView(mContext);
+            tabView.addView(childView);
+        } else {
+            View childView = tab.getCustomView();
+            tabView.addView(childView);
+        }
+        if (tabView.getChildCount() == 0) {
+            return;
+        }
+        tab.view = tabView;
+        tab.targetView = tabView.getChildAt(0);
+        tabView.getChildAt(0).setPadding((int) mTabPaddingLeft, (int) mTabPaddingTop, (int) mTabPaddingRight, (int) mTabPaddingBottom);
+        setStyle(tabView.getChildAt(0), i);
+
+        LinearLayout.LayoutParams tabLayoutParams = getTabLayoutParams();
+        mTabContainer.setGravity(mTabContainerGravity);
+        mTabContainer.addView(tabView, i, tabLayoutParams);
+        if (null != mHandleTab) {
+            mHandleTab.addTab(tabView.getChildAt(0), i);
+        }
+        tabView.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int position = mTabContainer.indexOfChild(v);
+                if (position >= 0) {
+                    if(mViewPager != null) {
+                        if (mViewPager.getCurrentItem() != position) {
+                            mViewPager.setCurrentItem(position);
                         }
+                    }else {
+                        selectedTab(position);
+                        mCurrentTab = position;
+                        mCurrentScrollTab = position;
+                        invalidate();
                     }
                 }
-            });
+            }
+        });
+    }
+
+    public Tab newTab() {
+        Tab tab = new Tab();
+        tab.parent = this;
+        return tab;
+    }
+    public void addTab(@NonNull Tab tab) {
+        addTab(tab, mTabs.isEmpty());
+    }
+
+    public void addTab(Tab tab, int position) {
+        addTab(tab, position, mTabs.isEmpty());
+    }
+
+    public void addTab(Tab tab, boolean setSelected) {
+        addTab(tab, mTabs.size(), setSelected);
+    }
+
+    /**
+     * Add a tab to this layout. The tab will be inserted at <code>position</code>.
+     *
+     * @param tab The tab to add
+     * @param position The new position of the tab
+     * @param setSelected True if the added tab should become the selected tab.
+     */
+    public void addTab(Tab tab, int position, boolean setSelected) {
+        if (tab.parent != this) {
+            throw new IllegalArgumentException("Tab belongs to a different TabLayout.");
+        }
+        configureTab(tab, position);
+        createTab(position, tab);
+
+        if (setSelected) {
+            selectedTab(position);
+        }
+    }
+
+    private void configureTab(@NonNull Tab tab, int position) {
+        tab.setPosition(position);
+        mTabs.add(position, tab);
+
+        final int count = mTabs.size();
+        for (int i = position + 1; i < count; i++) {
+            mTabs.get(i).setPosition(i);
         }
     }
 
@@ -404,45 +470,45 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
             return;
         }
         int childCount = mTabContainer.getChildCount();
+        Tab tab = null;
         View cView = null;
         for (int i = 0; i < childCount; i++) {
-            View childAt = mTabContainer.getChildAt(i);
-            TextView selected;
+            LinearLayout tabView = (LinearLayout) mTabContainer.getChildAt(i);
+            View childAt = tabView.getChildAt(0);
+            if (i == selectedIndex) {
+                cView = childAt;
+                tab = mTabs.get(i);
+            }
+            TextView selected = null;
             if (childAt instanceof TextView) {
                 selected = (TextView) childAt;
-            } else {
-                selected = findTabTextView(childAt);
             }
             if (null != selected) {
-                if (i == selectedIndex) {
-                    cView = childAt;
-                }
                 setSelectedTabStyle(selected, i == selectedIndex);
             }
         }
         if (null != mTabSelectedListener) {
             if (null != cView) {
-                mTabSelectedListener.onTabSelected(cView, selectedIndex);
+                mTabSelectedListener.onTabSelected(tab);
             }
             if (mCurrentTab >= 0 && mCurrentTab < mTabContainer.getChildCount()) {
-                View childAt = mTabContainer.getChildAt(mCurrentTab);
-                if (null != childAt) {
-                    mTabSelectedListener.onPreTabSelected(childAt, mCurrentTab);
+                if(selectedIndex != mCurrentTab) {
+                    LinearLayout tabView = (LinearLayout) mTabContainer.getChildAt(mCurrentTab);
+                    View childAt = tabView.getChildAt(0);
+                    if (null != childAt) {
+                        mTabSelectedListener.onPreTabSelected(mTabs.get(mCurrentTab));
+                    }
                 }
             }
         }
     }
 
-    private void setSelectedTabStyle(TextView selected, boolean isSelected) {
+    public void setSelectedTabStyle(TextView selected, boolean isSelected) {
         selected.setTextColor(isSelected ? mSelectedTabTextColor : mDefaultTabTextColor);
         selected.setTextSize(TypedValue.COMPLEX_UNIT_PX, isSelected ? mSelectedTabTextSize : mDefaultTabTextSize);
         if (mSelectedTabTextStyleBold) {
             selected.getPaint().setFakeBoldText(isSelected);
         }
-    }
-
-    private TextView findTabTextView(View parent) {
-        return parent.findViewWithTag(TAB_TAG);
     }
 
     /**
@@ -451,35 +517,33 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
      * 2. 默认状态：字体大小，字体颜色，加粗。
      *
      * @param childView
-     * @param tabView
      * @param index
      */
-    private void setStyle(TextView childView, View tabView, int index) {
-        if (null == childView || null == tabView || null == mTabContainer) {
+    private void setStyle(View childView, int index) {
+        if (null == childView || null == mTabContainer) {
             return;
         }
 
-        String title = mTitles.get(index);
-        if (null != mTabDrawables) {
-            WeTabDrawable weTabDrawable = mTabDrawables.get(title);
-            if (null != weTabDrawable) {
-                childView.setCompoundDrawables(
-                        measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.LEFT)),
-                        measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.TOP)),
-                        measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.RIGHT)),
-                        measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.BOTTOM)));
+        if(childView instanceof TextView) {
+            TextView textView = ((TextView)childView);
+            CharSequence title = mTabs.get(index).getText();
+            if (null != mTabDrawables) {
+                WeTabDrawable weTabDrawable = mTabDrawables.get(title);
+                if (null != weTabDrawable) {
+                    textView.setCompoundDrawables(
+                            measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.LEFT)),
+                            measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.TOP)),
+                            measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.RIGHT)),
+                            measureDrawable(weTabDrawable.getDrawableByGravity(Gravity.BOTTOM)));
+                }
             }
+            textView.setText(mTabs.get(index).getText());
+            textView.setGravity(Gravity.CENTER);
+            setSelectedTabStyle(textView, index == mCurrentTab);
         }
-        //如果布局有背景的时候，要清掉，不清掉的时候会遮挡住绘制的指示器。
-        clearBackground(tabView);
-        clearBackground(childView);
 
-        childView.setText(mTitles.get(index));
-        childView.setGravity(Gravity.CENTER);
-        setSelectedTabStyle(childView, index == mCurrentTab);
-        LinearLayout.LayoutParams tabLayoutParams = getTabLayoutParams();
-        mTabContainer.setGravity(mTabContainerGravity);
-        mTabContainer.addView(tabView, index, tabLayoutParams);
+        //如果布局有背景的时候，要清掉，不清掉的时候会遮挡住绘制的指示器。
+        clearBackground(childView);
     }
 
     public Drawable measureDrawable(Drawable drawable) {
@@ -536,7 +600,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         if (!haveInit()) {
             return;
         }
-        if (isInEditMode() || mTabCount <= 0) {
+        if (isInEditMode() || mTabs.size() <= 0) {
             return;
         }
         computeIndicatorRect();
@@ -552,8 +616,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
      * HorizontalScrollView滚到当前tab,并且居中显示
      */
     private void scrollToCurrentTab() {
-
-        if (mTabCount <= 0 || mPositionOffset <= 0) {
+        if (mTabs.size() <= 0 || mPositionOffset <= 0) {
             return;
         }
         View childAt = mTabContainer.getChildAt(mCurrentScrollTab);
@@ -567,7 +630,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
         int centerDistance = getWidth() / 2;
 
         int herf = 0;
-        if (mCurrentScrollTab < mTabCount - 1) {
+        if (mCurrentScrollTab < mTabs.size() - 1) {
             View nextTab = mTabContainer.getChildAt(mCurrentScrollTab + 1);
             if (null != nextTab) {
                 float leftDistance = childAt.getLeft() + (nextTab.getLeft() - childAt.getLeft()) * mPositionOffset;
@@ -684,20 +747,13 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     private int measureText(View childAt, int tabLeft, int tabRight) {
         //指示器要跟文本的宽度相等。
         if (mIndicatorEqualTabText) {
-            TextView tabView;
-            //childAt 可能是个ViewGroup，也可能是个TextView。
-            if (childAt instanceof TextView) {
-                tabView = (TextView) childAt;
-            } else {
-                tabView = childAt.findViewWithTag(TAB_TAG);
-            }
-            if (null != tabView) {
-                mTextPaint.setTextSize(tabView.getTextSize());
-                float tabTextWidth = mTextPaint.measureText(tabView.getText().toString().trim());
-                int drawableWidth = getTextViewCompoundDrawables(tabView);
-                tabTextWidth += drawableWidth;
-                int tabWidth = tabRight - tabLeft;
-                return (int) ((tabWidth - tabTextWidth) / 2);
+            if(childAt instanceof LinearLayout) {
+                View tabView = ((LinearLayout) childAt).getChildAt(0);
+                if (null != tabView) {
+                    float tabTextWidth = tabView.getWidth();
+                    int tabWidth = tabRight - tabLeft;
+                    return (int) ((tabWidth - tabTextWidth) / 2);
+                }
             }
         }
         return 0;
@@ -762,4 +818,57 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     private int getColorResource(int color) {
         return getContext().getResources().getColor(color);
     }
+
+    public int getTabCount() {
+        return mTabs.size();
+    }
+
+    public Tab getTabAt(int index) {
+        return mTabs.get(index);
+    }
+
+    public int getSelectedTabPosition() {
+        return mCurrentTab;
+    }
+
+    public static class Tab {
+        public WeTabLayout parent;
+        private CharSequence text;
+        private View customView;
+        public View view;
+        public View targetView;
+        private int position = -1;
+
+        public CharSequence getText() {
+            return text;
+        }
+
+        public Tab setText(CharSequence text) {
+            this.text = text;
+            return this;
+        }
+
+        public View getCustomView() {
+            return customView;
+        }
+
+        public Tab setCustomView(View customView) {
+            this.customView = customView;
+            return this;
+        }
+
+        public Tab setCustomView(@LayoutRes int resId) {
+            final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+            return setCustomView(inflater.inflate(resId, parent, false));
+        }
+
+        public int getPosition() {
+            return position;
+        }
+
+        void setPosition(int position) {
+            this.position = position;
+        }
+    }
+
 }

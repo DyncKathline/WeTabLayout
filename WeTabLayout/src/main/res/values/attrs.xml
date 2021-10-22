@@ -20,6 +20,8 @@
         <!--Tab-->
         <attr name="wtl_tab_padding_left" format="dimension" />
         <attr name="wtl_tab_padding_right" format="dimension" />
+        <attr name="wtl_tab_padding_top" format="dimension" />
+        <attr name="wtl_tab_padding_bottom" format="dimension" />
 
 
         <attr name="wtl_tab_fill_container" format="boolean" />

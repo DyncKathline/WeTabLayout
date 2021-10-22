@@ -366,6 +366,7 @@ public class WeTabLayout extends HorizontalScrollView implements ViewPager.OnPag
     private void createTabs() {
         for (int i = 0; i < mTabs.size(); i++) {
             Tab tab = mTabs.get(i);
+            tab.setPosition(i);
             createTab(i, tab);
         }
     }

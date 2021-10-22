@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
         tabLayout.addOnTabSelectedListener(new OnTabSelectedListener() {
             @Override
             public void onTabSelected(WeTabLayout.Tab tab) {
-                Log.i("TAG",  "onTabSelected, " + tab.toString());
+                Log.i("TAG",  "onTabSelected:==== " + tab.getPosition());
                 if(tab.targetView instanceof LinearLayout) {
                     TextView tv_tab_title = tab.targetView.findViewById(R.id.tv_tab_title);
                     tabLayout.setSelectedTabStyle(tv_tab_title, true);
@@ -41,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPreTabSelected(WeTabLayout.Tab tab) {
-                Log.i("TAG",  "onPreTabSelected, " + tab.toString());
+                Log.i("TAG",  "onPreTabSelected:==== " + tab.getPosition());
                 if(tab.targetView instanceof LinearLayout) {
                     TextView tv_tab_title = tab.targetView.findViewById(R.id.tv_tab_title);
                     tabLayout.setSelectedTabStyle(tv_tab_title, false);
@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
 //        tabLayout.setTabContainerGravity(Gravity.LEFT);
 //        tabLayout.setIndicatorResId(R.mipmap.ic_vip_logo);
-        tabLayout.setupWithViewPager(viewPager, titlesTwo);
+        tabLayout.setupWithViewPager(null, titlesTwo);
 
 //        tabLayout.setupWithViewPager(viewPager);
 //        tabLayout.addTab(tabLayout.newTab().setCustomView(R.layout.item_sliding_tab_layout));
